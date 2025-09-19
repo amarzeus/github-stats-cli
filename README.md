@@ -24,6 +24,17 @@ A powerful command-line tool to fetch, analyze, and visualize GitHub user statis
 - Supports GitHub authentication for higher rate limits and private repos
 - Compare stats of multiple users with a table
 - Generate HTML dashboards with embedded charts
+- Smart caching for faster repeated queries
+- Progress indicators for batch operations
+- Pie charts for programming language distribution
+
+## Requirements
+
+- Python 3.6+
+- `requests` library
+- `matplotlib` library (for charts)
+- `tabulate` library (for tables)
+- `tqdm` library (for progress bars)
 
 ## Installation
 
@@ -114,6 +125,11 @@ python github_stats_cli.py --compare user1 user2 user3
 Generate an HTML dashboard:
 ```
 python github_stats_cli.py octocat --html
+```
+
+Generate a pie chart of programming languages:
+```
+python github_stats_cli.py octocat --pie
 ```
 
 **Note**: To create a GitHub token, go to [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens). Select `repo` scope for private repos.

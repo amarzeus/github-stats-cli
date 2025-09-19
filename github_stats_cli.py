@@ -10,11 +10,44 @@ import json
 import matplotlib.pyplot as plt
 import os
 import requests
+import time
 from tabulate import tabulate
+from tqdm import tqdm
 from typing import Dict, Any
+
+CACHE_FILE = ".cache.json"
+CACHE_EXPIRY = 3600  # 1 hour
+
+def load_cache():
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_cache(cache):
+    with open(CACHE_FILE, "w") as f:
+        json.dump(cache, f)
+
+def get_cached_data(key, max_age=CACHE_EXPIRY):
+    cache = load_cache()
+    if key in cache:
+        data, timestamp = cache[key]
+        if time.time() - timestamp < max_age:
+            return data
+    return None
+
+def set_cached_data(key, data):
+    cache = load_cache()
+    cache[key] = (data, time.time())
+    save_cache(cache)
 
 def get_user_stats(username: str, token: str = None) -> Dict[str, Any]:
     """Fetch basic user statistics from GitHub API."""
+    cache_key = f"user_{username}_{token or 'no_token'}"
+    cached = get_cached_data(cache_key)
+    if cached:
+        return cached
+    
     url = f"https://api.github.com/users/{username}"
     headers = {"Authorization": f"token {token}"} if token else None
     response = requests.get(url, headers=headers)
@@ -24,10 +57,17 @@ def get_user_stats(username: str, token: str = None) -> Dict[str, Any]:
         raise ValueError("API rate limit exceeded. Try again later or use a personal access token.")
     elif response.status_code != 200:
         raise ValueError(f"Failed to fetch user data: {response.status_code} - {response.text}")
-    return response.json()
+    data = response.json()
+    set_cached_data(cache_key, data)
+    return data
 
 def get_user_repos(username: str, max_repos: int = 10, token: str = None) -> list:
     """Fetch user's repositories, sorted by stars."""
+    cache_key = f"repos_{username}_{max_repos}_{token or 'no_token'}"
+    cached = get_cached_data(cache_key)
+    if cached:
+        return cached
+    
     url = f"https://api.github.com/users/{username}/repos?sort=stars&per_page={max_repos}"
     headers = {"Authorization": f"token {token}"} if token else None
     response = requests.get(url, headers=headers)
@@ -37,7 +77,9 @@ def get_user_repos(username: str, max_repos: int = 10, token: str = None) -> lis
         raise ValueError("API rate limit exceeded. Try again later or use a personal access token.")
     elif response.status_code != 200:
         raise ValueError(f"Failed to fetch repos: {response.status_code} - {response.text}")
-    return response.json()
+    data = response.json()
+    set_cached_data(cache_key, data)
+    return data
 
 def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = True) -> Dict[str, Any]:
     """Display the fetched stats in a readable format and return data."""
@@ -166,18 +208,43 @@ def generate_html(data: Dict[str, Any]):
         f.write(html)
     print("Dashboard saved as 'github_stats_dashboard.html'")
 
+def generate_pie_chart(data: Dict[str, Any]):
+    """Generate a pie chart of programming languages."""
+    repos = data["top_repositories"]
+    if not repos:
+        print("No repositories to chart.")
+        return
+    
+    languages = {}
+    for repo in repos:
+        lang = repo["language"] or "Others"
+        languages[lang] = languages.get(lang, 0) + 1
+    
+    labels = list(languages.keys())
+    sizes = list(languages.values())
+    
+    plt.figure(figsize=(8, 8))
+    plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
+    plt.title(f'Programming Languages Distribution for {data["username"]}')
+    plt.axis('equal')
+    plt.savefig('github_languages_pie.png')
+    print("Pie chart saved as 'github_languages_pie.png'")
+
 def compare_users(usernames: list, token: str = None, max_repos: int = 10):
     """Compare stats of multiple users."""
     user_data_list = []
-    for username in usernames:
-        try:
-            user_data = get_user_stats(username, token)
-            repos = get_user_repos(username, max_repos, token)
-            data = display_stats(user_data, repos, False)  # Don't print individual
-            user_data_list.append(data)
-        except ValueError as e:
-            print(f"Error fetching data for {username}: {e}")
-            return
+    with tqdm(total=len(usernames), desc="Fetching user data") as pbar:
+        for username in usernames:
+            try:
+                user_data = get_user_stats(username, token)
+                repos = get_user_repos(username, max_repos, token)
+                data = display_stats(user_data, repos, False)  # Don't print individual
+                user_data_list.append(data)
+                pbar.set_postfix_str(f"Processed {username}")
+            except ValueError as e:
+                print(f"Error fetching data for {username}: {e}")
+                return
+            pbar.update(1)
     
     # Create comparison table
     headers = ["Stat"] + usernames
@@ -208,6 +275,7 @@ def main():
     parser.add_argument("--token", default=config.get("default_token", ""), help="GitHub personal access token for authentication (optional)")
     parser.add_argument("--compare", nargs='+', help="Compare stats of multiple users")
     parser.add_argument("--html", action="store_true", help="Generate an HTML dashboard")
+    parser.add_argument("--pie", action="store_true", help="Generate a pie chart of programming languages")
     args = parser.parse_args()
     
     if args.compare:
@@ -223,7 +291,7 @@ def main():
         else:
             user_data = get_user_stats(usernames[0], args.token)
             repos = get_user_repos(usernames[0], args.max_repos, args.token)
-            data = display_stats(user_data, repos, not (args.json or args.csv or args.chart or args.html))
+            data = display_stats(user_data, repos, not (args.json or args.csv or args.chart or args.html or args.pie))
             if args.json:
                 print(json.dumps(data, indent=4))
             if args.csv:
@@ -232,6 +300,8 @@ def main():
                 generate_chart(data)
             if args.html:
                 generate_html(data)
+            if args.pie:
+                generate_pie_chart(data)
     except ValueError as e:
         print(f"Error: {e}")
     except requests.RequestException as e:
