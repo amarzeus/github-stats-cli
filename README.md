@@ -8,7 +8,7 @@ A powerful command-line tool to fetch, analyze, and visualize GitHub user statis
 
 - [Features](#features)
 - [Installation](#installation)
-- [Requirements](#requirements)
+- [Configuration](#configuration)
 - [Usage](#usage)
 - [Contributing](#contributing)
 - [License](#license)
@@ -57,12 +57,20 @@ A powerful command-line tool to fetch, analyze, and visualize GitHub user statis
    github-stats <username>
    ```
 
-## Requirements
+## Configuration
 
-- Python 3.6+
-- `requests` library
-- `matplotlib` library (for charts)
-- `tabulate` library (for tables)
+You can create a `config.json` file in the project directory to set default values:
+
+```json
+{
+    "default_max_repos": 10,
+    "default_token": "your_github_token_here",
+    "output_format": "text",
+    "chart_style": "skyblue"
+}
+```
+
+Copy `config.json.example` to `config.json` and edit as needed. This allows you to set defaults for max repos, token, etc.
 
 ## Usage
 

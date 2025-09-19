@@ -8,6 +8,7 @@ import csv
 import io
 import json
 import matplotlib.pyplot as plt
+import os
 import requests
 from tabulate import tabulate
 from typing import Dict, Any
@@ -17,7 +18,11 @@ def get_user_stats(username: str, token: str = None) -> Dict[str, Any]:
     url = f"https://api.github.com/users/{username}"
     headers = {"Authorization": f"token {token}"} if token else None
     response = requests.get(url, headers=headers)
-    if response.status_code != 200:
+    if response.status_code == 404:
+        raise ValueError(f"User '{username}' not found on GitHub.")
+    elif response.status_code == 403:
+        raise ValueError("API rate limit exceeded. Try again later or use a personal access token.")
+    elif response.status_code != 200:
         raise ValueError(f"Failed to fetch user data: {response.status_code} - {response.text}")
     return response.json()
 
@@ -26,7 +31,11 @@ def get_user_repos(username: str, max_repos: int = 10, token: str = None) -> lis
     url = f"https://api.github.com/users/{username}/repos?sort=stars&per_page={max_repos}"
     headers = {"Authorization": f"token {token}"} if token else None
     response = requests.get(url, headers=headers)
-    if response.status_code != 200:
+    if response.status_code == 404:
+        raise ValueError(f"User '{username}' not found on GitHub.")
+    elif response.status_code == 403:
+        raise ValueError("API rate limit exceeded. Try again later or use a personal access token.")
+    elif response.status_code != 200:
         raise ValueError(f"Failed to fetch repos: {response.status_code} - {response.text}")
     return response.json()
 
@@ -44,9 +53,12 @@ def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = Tru
         "created_at": user_data['created_at'],
         "top_repositories": [
             {
-                "name": repo['name'],
-                "stars": repo['stargazers_count'],
-                "language": repo['language']
+                "name": repo["name"],
+                "stars": repo["stargazers_count"],
+                "language": repo["language"],
+                "forks": repo["forks_count"],
+                "open_issues": repo["open_issues_count"],
+                "updated_at": repo["updated_at"]
             } for repo in repos[:10]
         ]
     }
@@ -63,11 +75,13 @@ def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = Tru
         print(f"Account Created: {data['created_at']}")
         
         print("\nTop Repositories (by stars):")
-        if not data['top_repositories']:
-            print("No public repositories found.")
-        else:
-            for repo in data['top_repositories']:
-                print(f"- {repo['name']}: {repo['stars']} stars, {repo['language'] or 'N/A'}")
+        repo_table = [
+            ["Name", "Stars", "Language", "Forks", "Open Issues", "Last Updated"]
+        ] + [
+            [repo["name"], repo["stars"], repo["language"] or "N/A", repo["forks"], repo["open_issues"], repo["updated_at"]]
+            for repo in data["top_repositories"]
+        ]
+        print(tabulate(repo_table, headers="firstrow", tablefmt="grid"))
     
     return data
 
@@ -82,9 +96,9 @@ def output_csv(data: Dict[str, Any]):
     
     # Repos
     writer.writerow([])
-    writer.writerow(["Type", "Name", "Stars", "Language"])
+    writer.writerow(["Type", "Name", "Stars", "Language", "Forks", "Open Issues", "Last Updated"])
     for repo in data["top_repositories"]:
-        writer.writerow(["Repo", repo["name"], repo["stars"], repo["language"]])
+        writer.writerow(["Repo", repo["name"], repo["stars"], repo["language"], repo["forks"], repo["open_issues"], repo["updated_at"]])
     
 def generate_chart(data: Dict[str, Any]):
     """Generate a bar chart of top repositories by stars."""
@@ -139,8 +153,8 @@ def generate_html(data: Dict[str, Any]):
     </div>
     <h2>Top Repositories</h2>
     <table>
-        <tr><th>Name</th><th>Stars</th><th>Language</th></tr>
-        {"".join(f"<tr><td>{repo['name']}</td><td>{repo['stars']}</td><td>{repo['language'] or 'N/A'}</td></tr>" for repo in data["top_repositories"])}
+        <tr><th>Name</th><th>Stars</th><th>Language</th><th>Forks</th><th>Open Issues</th><th>Last Updated</th></tr>
+        {"".join(f"<tr><td>{repo['name']}</td><td>{repo['stars']}</td><td>{repo['language'] or 'N/A'}</td><td>{repo['forks']}</td><td>{repo['open_issues']}</td><td>{repo['updated_at']}</td></tr>" for repo in data["top_repositories"])}
     </table>
     <!-- If chart exists, embed it -->
     <h2>Chart</h2>
@@ -179,13 +193,19 @@ def compare_users(usernames: list, token: str = None, max_repos: int = 10):
     print(tabulate(table, headers=headers, tablefmt="grid"))
 
 def main():
+    # Load config
+    config = {}
+    if os.path.exists("config.json"):
+        with open("config.json", "r") as f:
+            config = json.load(f)
+    
     parser = argparse.ArgumentParser(description="Fetch GitHub user statistics.")
     parser.add_argument("username", nargs='?', help="GitHub username to fetch stats for (use --compare for multiple)")
-    parser.add_argument("--max-repos", type=int, default=10, help="Max number of repos to display (default: 10)")
+    parser.add_argument("--max-repos", type=int, default=config.get("default_max_repos", 10), help="Max number of repos to display (default: 10)")
     parser.add_argument("--json", action="store_true", help="Output in JSON format")
     parser.add_argument("--csv", action="store_true", help="Output in CSV format")
     parser.add_argument("--chart", action="store_true", help="Generate a bar chart of top repositories by stars")
-    parser.add_argument("--token", help="GitHub personal access token for authentication (optional)")
+    parser.add_argument("--token", default=config.get("default_token", ""), help="GitHub personal access token for authentication (optional)")
     parser.add_argument("--compare", nargs='+', help="Compare stats of multiple users")
     parser.add_argument("--html", action="store_true", help="Generate an HTML dashboard")
     args = parser.parse_args()
