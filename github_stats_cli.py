@@ -4,6 +4,8 @@ GitHub Stats CLI: A simple tool to fetch and display GitHub user statistics.
 """
 
 import argparse
+import csv
+import io
 import json
 import requests
 from typing import Dict, Any
@@ -24,7 +26,7 @@ def get_user_repos(username: str, max_repos: int = 10) -> list:
         raise ValueError(f"Failed to fetch repos: {response.status_code} - {response.text}")
     return response.json()
 
-def display_stats(user_data: Dict[str, Any], repos: list, json_flag: bool = False) -> Dict[str, Any]:
+def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = True) -> Dict[str, Any]:
     """Display the fetched stats in a readable format and return data."""
     data = {
         "username": user_data['login'],
@@ -45,7 +47,7 @@ def display_stats(user_data: Dict[str, Any], repos: list, json_flag: bool = Fals
         ]
     }
     
-    if not json_flag:
+    if print_flag:
         print(f"GitHub Stats for: {data['username']}")
         print(f"Name: {data['name'] or 'N/A'}")
         print(f"Bio: {data['bio'] or 'N/A'}")
@@ -65,19 +67,39 @@ def display_stats(user_data: Dict[str, Any], repos: list, json_flag: bool = Fals
     
     return data
 
+def output_csv(data: Dict[str, Any]):
+    """Output data in CSV format."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # User stats
+    writer.writerow(["Type", "Username", "Name", "Bio", "Location", "Followers", "Following", "Public Repos", "Public Gists", "Created At"])
+    writer.writerow(["User", data["username"], data["name"], data["bio"], data["location"], data["followers"], data["following"], data["public_repos"], data["public_gists"], data["created_at"]])
+    
+    # Repos
+    writer.writerow([])
+    writer.writerow(["Type", "Name", "Stars", "Language"])
+    for repo in data["top_repositories"]:
+        writer.writerow(["Repo", repo["name"], repo["stars"], repo["language"]])
+    
+    print(output.getvalue())
+
 def main():
     parser = argparse.ArgumentParser(description="Fetch GitHub user statistics.")
     parser.add_argument("username", help="GitHub username to fetch stats for")
     parser.add_argument("--max-repos", type=int, default=10, help="Max number of repos to display (default: 10)")
     parser.add_argument("--json", action="store_true", help="Output in JSON format")
+    parser.add_argument("--csv", action="store_true", help="Output in CSV format")
     args = parser.parse_args()
     
     try:
         user_data = get_user_stats(args.username)
         repos = get_user_repos(args.username, args.max_repos)
-        data = display_stats(user_data, repos, args.json)
+        data = display_stats(user_data, repos, not (args.json or args.csv))
         if args.json:
             print(json.dumps(data, indent=4))
+        elif args.csv:
+            output_csv(data)
     except ValueError as e:
         print(f"Error: {e}")
     except requests.RequestException as e:
