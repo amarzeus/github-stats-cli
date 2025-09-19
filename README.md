@@ -1,6 +1,17 @@
 # GitHub Stats CLI
 
-A simple command-line tool to fetch and display GitHub user statistics, including profile info and top repositories. Perfect for developers wanting quick insights into their GitHub presence or others' profiles.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A powerful command-line tool to fetch, analyze, and visualize GitHub user statistics. Perfect for developers, recruiters, and data enthusiasts to gain insights into GitHub profiles.
+
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Requirements](#requirements)
+- [Usage](#usage)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Features
 
@@ -45,6 +56,13 @@ A simple command-line tool to fetch and display GitHub user statistics, includin
    ```
    github-stats <username>
    ```
+
+## Requirements
+
+- Python 3.6+
+- `requests` library
+- `matplotlib` library (for charts)
+- `tabulate` library (for tables)
 
 ## Usage
 
@@ -110,35 +128,10 @@ Top Repositories (by stars):
 ...
 ```
 
-## Requirements
-
-- Python 3.6+
-- `requests` library
-
 ## Contributing
 
-Contributions are welcome! Here's how to get started:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-### Ideas for Contributions
-- Add graphical output (e.g., charts using matplotlib)
-- Support for GitHub API authentication for private repos
-- Export stats to JSON/CSV
-- Add more detailed repo stats (e.g., forks, issues)
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on how to get started.
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Author
-
-Amar Kumar - [Your GitHub Profile](https://github.com/amarzeus)
-
-## Disclaimer
-
-This tool uses GitHub's public API. Please respect API rate limits and GitHub's terms of service.
