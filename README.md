@@ -9,6 +9,7 @@ A simple command-line tool to fetch and display GitHub user statistics, includin
 - Easy-to-use CLI interface
 - No authentication required (uses public GitHub API)
 - Export data in JSON or CSV format
+- Generate bar charts for top repositories
 
 ## Installation
 
@@ -64,6 +65,11 @@ python github_stats_cli.py octocat --json
 Output in CSV format:
 ```
 python github_stats_cli.py octocat --csv
+```
+
+Generate a bar chart of top repositories:
+```
+python github_stats_cli.py octocat --chart
 ```
 
 ### Output Example

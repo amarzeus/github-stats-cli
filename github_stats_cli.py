@@ -7,6 +7,7 @@ import argparse
 import csv
 import io
 import json
+import matplotlib.pyplot as plt
 import requests
 from typing import Dict, Any
 
@@ -82,7 +83,25 @@ def output_csv(data: Dict[str, Any]):
     for repo in data["top_repositories"]:
         writer.writerow(["Repo", repo["name"], repo["stars"], repo["language"]])
     
-    print(output.getvalue())
+def generate_chart(data: Dict[str, Any]):
+    """Generate a bar chart of top repositories by stars."""
+    repos = data["top_repositories"]
+    if not repos:
+        print("No repositories to chart.")
+        return
+    
+    names = [repo["name"] for repo in repos]
+    stars = [repo["stars"] for repo in repos]
+    
+    plt.figure(figsize=(10, 6))
+    plt.bar(names, stars, color='skyblue')
+    plt.xlabel('Repository')
+    plt.ylabel('Stars')
+    plt.title(f'Top Repositories by Stars for {data["username"]}')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.savefig('github_stats_chart.png')
+    print("Chart saved as 'github_stats_chart.png'")
 
 def main():
     parser = argparse.ArgumentParser(description="Fetch GitHub user statistics.")
@@ -90,16 +109,19 @@ def main():
     parser.add_argument("--max-repos", type=int, default=10, help="Max number of repos to display (default: 10)")
     parser.add_argument("--json", action="store_true", help="Output in JSON format")
     parser.add_argument("--csv", action="store_true", help="Output in CSV format")
+    parser.add_argument("--chart", action="store_true", help="Generate a bar chart of top repositories by stars")
     args = parser.parse_args()
     
     try:
         user_data = get_user_stats(args.username)
         repos = get_user_repos(args.username, args.max_repos)
-        data = display_stats(user_data, repos, not (args.json or args.csv))
+        data = display_stats(user_data, repos, not (args.json or args.csv or args.chart))
         if args.json:
             print(json.dumps(data, indent=4))
         elif args.csv:
             output_csv(data)
+        elif args.chart:
+            generate_chart(data)
     except ValueError as e:
         print(f"Error: {e}")
     except requests.RequestException as e:
