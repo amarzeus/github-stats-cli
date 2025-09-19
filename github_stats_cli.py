@@ -11,18 +11,20 @@ import matplotlib.pyplot as plt
 import requests
 from typing import Dict, Any
 
-def get_user_stats(username: str) -> Dict[str, Any]:
+def get_user_stats(username: str, token: str = None) -> Dict[str, Any]:
     """Fetch basic user statistics from GitHub API."""
     url = f"https://api.github.com/users/{username}"
-    response = requests.get(url)
+    headers = {"Authorization": f"token {token}"} if token else None
+    response = requests.get(url, headers=headers)
     if response.status_code != 200:
         raise ValueError(f"Failed to fetch user data: {response.status_code} - {response.text}")
     return response.json()
 
-def get_user_repos(username: str, max_repos: int = 10) -> list:
+def get_user_repos(username: str, max_repos: int = 10, token: str = None) -> list:
     """Fetch user's repositories, sorted by stars."""
     url = f"https://api.github.com/users/{username}/repos?sort=stars&per_page={max_repos}"
-    response = requests.get(url)
+    headers = {"Authorization": f"token {token}"} if token else None
+    response = requests.get(url, headers=headers)
     if response.status_code != 200:
         raise ValueError(f"Failed to fetch repos: {response.status_code} - {response.text}")
     return response.json()
@@ -110,11 +112,12 @@ def main():
     parser.add_argument("--json", action="store_true", help="Output in JSON format")
     parser.add_argument("--csv", action="store_true", help="Output in CSV format")
     parser.add_argument("--chart", action="store_true", help="Generate a bar chart of top repositories by stars")
+    parser.add_argument("--token", help="GitHub personal access token for authentication (optional)")
     args = parser.parse_args()
     
     try:
-        user_data = get_user_stats(args.username)
-        repos = get_user_repos(args.username, args.max_repos)
+        user_data = get_user_stats(args.username, args.token)
+        repos = get_user_repos(args.username, args.max_repos, args.token)
         data = display_stats(user_data, repos, not (args.json or args.csv or args.chart))
         if args.json:
             print(json.dumps(data, indent=4))

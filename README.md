@@ -10,6 +10,7 @@ A simple command-line tool to fetch and display GitHub user statistics, includin
 - No authentication required (uses public GitHub API)
 - Export data in JSON or CSV format
 - Generate bar charts for top repositories
+- Supports GitHub authentication for higher rate limits and private repos
 
 ## Installation
 
@@ -71,6 +72,13 @@ Generate a bar chart of top repositories:
 ```
 python github_stats_cli.py octocat --chart
 ```
+
+Use GitHub personal access token for authentication:
+```
+python github_stats_cli.py octocat --token YOUR_GITHUB_TOKEN
+```
+
+**Note**: To create a GitHub token, go to [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens). Select `repo` scope for private repos.
 
 ### Output Example
 ```
