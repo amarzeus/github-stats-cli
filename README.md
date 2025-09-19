@@ -27,6 +27,9 @@ A powerful command-line tool to fetch, analyze, and visualize GitHub user statis
 - Smart caching for faster repeated queries
 - Progress indicators for batch operations
 - Pie charts for programming language distribution
+- Organization statistics support
+- Time-based repository filtering (--since)
+- Contributor analysis for top repositories
 
 ## Requirements
 
@@ -35,6 +38,10 @@ A powerful command-line tool to fetch, analyze, and visualize GitHub user statis
 - `matplotlib` library (for charts)
 - `tabulate` library (for tables)
 - `tqdm` library (for progress bars)
+- `json` (built-in)
+- `csv` (built-in)
+- `os` (built-in)
+- `time` (built-in)
 
 ## Installation
 
@@ -130,6 +137,21 @@ python github_stats_cli.py octocat --html
 Generate a pie chart of programming languages:
 ```
 python github_stats_cli.py octocat --pie
+```
+
+Get stats for an organization:
+```
+python github_stats_cli.py --org facebook
+```
+
+Filter repos updated since a date:
+```
+python github_stats_cli.py octocat --since 2023-01-01
+```
+
+Show top contributors for top repository:
+```
+python github_stats_cli.py octocat --contributors
 ```
 
 **Note**: To create a GitHub token, go to [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens). Select `repo` scope for private repos.

@@ -61,14 +61,36 @@ def get_user_stats(username: str, token: str = None) -> Dict[str, Any]:
     set_cached_data(cache_key, data)
     return data
 
-def get_user_repos(username: str, max_repos: int = 10, token: str = None) -> list:
+def get_org_stats(orgname: str, token: str = None) -> Dict[str, Any]:
+    """Fetch basic organization statistics from GitHub API."""
+    cache_key = f"org_{orgname}_{token or 'no_token'}"
+    cached = get_cached_data(cache_key)
+    if cached:
+        return cached
+    
+    url = f"https://api.github.com/orgs/{orgname}"
+    headers = {"Authorization": f"token {token}"} if token else None
+    response = requests.get(url, headers=headers)
+    if response.status_code == 404:
+        raise ValueError(f"Organization '{orgname}' not found on GitHub.")
+    elif response.status_code == 403:
+        raise ValueError("API rate limit exceeded. Try again later or use a personal access token.")
+    elif response.status_code != 200:
+        raise ValueError(f"Failed to fetch org data: {response.status_code} - {response.text}")
+    data = response.json()
+    set_cached_data(cache_key, data)
+    return data
+
+def get_user_repos(username: str, max_repos: int = 10, token: str = None, since: str = None) -> list:
     """Fetch user's repositories, sorted by stars."""
-    cache_key = f"repos_{username}_{max_repos}_{token or 'no_token'}"
+    cache_key = f"repos_{username}_{max_repos}_{token or 'no_token'}_{since or 'no_since'}"
     cached = get_cached_data(cache_key)
     if cached:
         return cached
     
     url = f"https://api.github.com/users/{username}/repos?sort=stars&per_page={max_repos}"
+    if since:
+        url += f"&since={since}T00:00:00Z"
     headers = {"Authorization": f"token {token}"} if token else None
     response = requests.get(url, headers=headers)
     if response.status_code == 404:
@@ -81,7 +103,95 @@ def get_user_repos(username: str, max_repos: int = 10, token: str = None) -> lis
     set_cached_data(cache_key, data)
     return data
 
-def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = True) -> Dict[str, Any]:
+def get_org_repos(orgname: str, max_repos: int = 10, token: str = None, since: str = None) -> list:
+    """Fetch organization's repositories, sorted by stars."""
+    cache_key = f"org_repos_{orgname}_{max_repos}_{token or 'no_token'}_{since or 'no_since'}"
+    cached = get_cached_data(cache_key)
+    if cached:
+        return cached
+    
+    url = f"https://api.github.com/orgs/{orgname}/repos?sort=stars&per_page={max_repos}"
+    if since:
+        url += f"&since={since}T00:00:00Z"
+    headers = {"Authorization": f"token {token}"} if token else None
+    response = requests.get(url, headers=headers)
+    if response.status_code == 404:
+        raise ValueError(f"Organization '{orgname}' not found on GitHub.")
+    elif response.status_code == 403:
+        raise ValueError("API rate limit exceeded. Try again later or use a personal access token.")
+    elif response.status_code != 200:
+        raise ValueError(f"Failed to fetch org repos: {response.status_code} - {response.text}")
+    data = response.json()
+    set_cached_data(cache_key, data)
+    return data
+
+def get_repo_contributors(owner: str, repo: str, token: str = None, max_contribs: int = 5) -> list:
+    """Fetch top contributors for a repository."""
+    cache_key = f"contributors_{owner}_{repo}_{max_contribs}_{token or 'no_token'}"
+    cached = get_cached_data(cache_key)
+    if cached:
+        return cached
+    
+    url = f"https://api.github.com/repos/{owner}/{repo}/contributors?per_page={max_contribs}"
+    headers = {"Authorization": f"token {token}"} if token else None
+    response = requests.get(url, headers=headers)
+    if response.status_code == 404:
+        return []
+    elif response.status_code == 403:
+        return []
+    elif response.status_code != 200:
+        return []
+    data = response.json()
+    set_cached_data(cache_key, data)
+    return data
+
+def display_org_stats(org_data: Dict[str, Any], repos: list, print_flag: bool = True) -> Dict[str, Any]:
+    """Display the fetched org stats in a readable format and return data."""
+    data = {
+        "orgname": org_data['login'],
+        "name": org_data.get('name'),
+        "description": org_data.get('description'),
+        "location": org_data.get('location'),
+        "public_members": org_data.get('public_members_count', 0),
+        "followers": org_data['followers'],
+        "following": org_data['following'],
+        "public_repos": org_data['public_repos'],
+        "created_at": org_data['created_at'],
+        "top_repositories": [
+            {
+                "name": repo["name"],
+                "stars": repo["stargazers_count"],
+                "language": repo["language"],
+                "forks": repo["forks_count"],
+                "open_issues": repo["open_issues_count"],
+                "updated_at": repo["updated_at"]
+            } for repo in repos[:10]
+        ]
+    }
+    
+    if print_flag:
+        print(f"GitHub Stats for: {data['orgname']} (Organization)")
+        print(f"Name: {data['name'] or 'N/A'}")
+        print(f"Description: {data['description'] or 'N/A'}")
+        print(f"Location: {data['location'] or 'N/A'}")
+        print(f"Public Members: {data['public_members']}")
+        print(f"Followers: {data['followers']}")
+        print(f"Following: {data['following']}")
+        print(f"Public Repos: {data['public_repos']}")
+        print(f"Created At: {data['created_at']}")
+        
+        print("\nTop Repositories (by stars):")
+        repo_table = [
+            ["Name", "Stars", "Language", "Forks", "Open Issues", "Last Updated"]
+        ] + [
+            [repo["name"], repo["stars"], repo["language"] or "N/A", repo["forks"], repo["open_issues"], repo["updated_at"]]
+            for repo in data["top_repositories"]
+        ]
+        print(tabulate(repo_table, headers="firstrow", tablefmt="grid"))
+    
+    return data
+
+def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = True, show_contributors: bool = False, token: str = None) -> Dict[str, Any]:
     """Display the fetched stats in a readable format and return data."""
     data = {
         "username": user_data['login'],
@@ -124,6 +234,19 @@ def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = Tru
             for repo in data["top_repositories"]
         ]
         print(tabulate(repo_table, headers="firstrow", tablefmt="grid"))
+        
+        if show_contributors and repos:
+            top_repo = repos[0]
+            contributors = get_repo_contributors(data['username'], top_repo['name'], token)
+            if contributors:
+                print(f"\nTop Contributors for {top_repo['name']}:")
+                contrib_table = [
+                    ["Username", "Contributions"]
+                ] + [
+                    [contrib["login"], contrib["contributions"]]
+                    for contrib in contributors[:5]
+                ]
+                print(tabulate(contrib_table, headers="firstrow", tablefmt="grid"))
     
     return data
 
@@ -276,22 +399,35 @@ def main():
     parser.add_argument("--compare", nargs='+', help="Compare stats of multiple users")
     parser.add_argument("--html", action="store_true", help="Generate an HTML dashboard")
     parser.add_argument("--pie", action="store_true", help="Generate a pie chart of programming languages")
+    parser.add_argument("--org", help="Get stats for organization instead of user")
+    parser.add_argument("--since", help="Filter repos updated since date (YYYY-MM-DD)")
+    parser.add_argument("--contributors", action="store_true", help="Show top contributors for the top repository")
     args = parser.parse_args()
     
+    is_org = False
     if args.compare:
         usernames = args.compare
+    elif args.org:
+        usernames = [args.org]
+        is_org = True
     elif args.username:
         usernames = [args.username]
+        is_org = False
     else:
-        parser.error("Either provide a username or use --compare for multiple users")
+        parser.error("Either provide a username, --org organization, or use --compare for multiple users")
     
     try:
         if len(usernames) > 1:
             compare_users(usernames, args.token, args.max_repos)
         else:
-            user_data = get_user_stats(usernames[0], args.token)
-            repos = get_user_repos(usernames[0], args.max_repos, args.token)
-            data = display_stats(user_data, repos, not (args.json or args.csv or args.chart or args.html or args.pie))
+            if is_org:
+                org_data = get_org_stats(usernames[0], args.token)
+                repos = get_org_repos(usernames[0], args.max_repos, args.token, args.since)
+                data = display_org_stats(org_data, repos, not (args.json or args.csv or args.chart or args.html or args.pie))
+            else:
+                user_data = get_user_stats(usernames[0], args.token)
+                repos = get_user_repos(usernames[0], args.max_repos, args.token, args.since)
+                data = display_stats(user_data, repos, not (args.json or args.csv or args.chart or args.html or args.pie), args.contributors, args.token)
             if args.json:
                 print(json.dumps(data, indent=4))
             if args.csv:
