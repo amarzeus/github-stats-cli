@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Stats CLI - Web Interface</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4rem 0;
+        }
+        .feature-card {
+            transition: transform 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 mx-auto text-center">
+                    <h1 class="display-4 fw-bold">GitHub Stats CLI</h1>
+                    <p class="lead">Powerful GitHub statistics and analytics tool</p>
+                    <p class="mb-4">Analyze user profiles, organizations, and repositories with advanced features</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container my-5">
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Get Started</h5>
+                        <form id="userForm" class="row g-3">
+                            <div class="col-md-8">
+                                <input type="text" class="form-control" id="username" placeholder="Enter GitHub username" required>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-primary w-100">View Stats</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-4">
+                        <div class="card feature-card h-100">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">User Stats</h5>
+                                <p class="card-text">Get detailed statistics for any GitHub user including repositories, followers, and activity.</p>
+                                <a href="#user" class="btn btn-outline-primary">Learn More</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-4">
+                        <div class="card feature-card h-100">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Organizations</h5>
+                                <p class="card-text">Analyze GitHub organizations with member counts, repositories, and activity metrics.</p>
+                                <a href="#org" class="btn btn-outline-primary">Learn More</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-4">
+                        <div class="card feature-card h-100">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Comparisons</h5>
+                                <p class="card-text">Compare multiple users side-by-side with detailed analytics and visualizations.</p>
+                                <a href="#compare" class="btn btn-outline-primary">Learn More</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-5">
+                    <div class="col-12">
+                        <h3>Advanced Features</h3>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <ul class="list-unstyled">
+                                    <li>✓ Commit activity analysis</li>
+                                    <li>✓ Repository health scores</li>
+                                    <li>✓ Language distribution charts</li>
+                                    <li>✓ Time-based filtering</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <ul class="list-unstyled">
+                                    <li>✓ Multiple export formats</li>
+                                    <li>✓ API rate limit monitoring</li>
+                                    <li>✓ Smart caching system</li>
+                                    <li>✓ Progress indicators</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('userForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            window.location.href = `/stats/${username}`;
+        });
+    </script>
+</body>
+</html>

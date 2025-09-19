@@ -10,7 +10,9 @@ import json
 import matplotlib.pyplot as plt
 import os
 import requests
+import sqlite3
 import time
+from datetime import datetime
 from tabulate import tabulate
 from tqdm import tqdm
 import yaml
@@ -28,6 +30,102 @@ def load_cache():
 def save_cache(cache):
     with open(CACHE_FILE, "w") as f:
         json.dump(cache, f)
+
+def init_database():
+    """Initialize SQLite database for historical data."""
+    conn = sqlite3.connect('github_stats.db')
+    cursor = conn.cursor()
+    
+    # Create tables
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            date TEXT NOT NULL,
+            followers INTEGER,
+            following INTEGER,
+            public_repos INTEGER,
+            public_gists INTEGER
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS repo_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            repo_name TEXT NOT NULL,
+            date TEXT NOT NULL,
+            stars INTEGER,
+            forks INTEGER,
+            open_issues INTEGER,
+            language TEXT
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+def save_user_stats_to_db(username: str, data: Dict[str, Any]):
+    """Save user stats to database."""
+    init_database()
+    conn = sqlite3.connect('github_stats.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        INSERT INTO user_stats (username, date, followers, following, public_repos, public_gists)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (
+        username,
+        datetime.now().isoformat(),
+        data.get('followers', 0),
+        data.get('following', 0),
+        data.get('public_repos', 0),
+        data.get('public_gists', 0)
+    ))
+    
+    conn.commit()
+    conn.close()
+
+def save_repo_stats_to_db(username: str, repos: list):
+    """Save repository stats to database."""
+    init_database()
+    conn = sqlite3.connect('github_stats.db')
+    cursor = conn.cursor()
+    
+    for repo in repos:
+        cursor.execute('''
+            INSERT INTO repo_stats (username, repo_name, date, stars, forks, open_issues, language)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            username,
+            repo.get('name', ''),
+            datetime.now().isoformat(),
+            repo.get('stargazers_count', 0),
+            repo.get('forks_count', 0),
+            repo.get('open_issues_count', 0),
+            repo.get('language', '')
+        ))
+    
+    conn.commit()
+    conn.close()
+
+def get_user_history(username: str, days: int = 30):
+    """Get historical user stats."""
+    init_database()
+    conn = sqlite3.connect('github_stats.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT date, followers, following, public_repos, public_gists
+        FROM user_stats
+        WHERE username = ?
+        ORDER BY date DESC
+        LIMIT ?
+    ''', (username, days))
+    
+    history = cursor.fetchall()
+    conn.close()
+    return history
 
 def get_cached_data(key, max_age=CACHE_EXPIRY):
     cache = load_cache()
@@ -194,7 +292,8 @@ def display_org_stats(org_data: Dict[str, Any], repos: list, print_flag: bool = 
                 "language": repo["language"],
                 "forks": repo["forks_count"],
                 "open_issues": repo["open_issues_count"],
-                "updated_at": repo["updated_at"]
+                "updated_at": repo["updated_at"],
+                "size": repo.get("size", 0)
             } for repo in repos[:10]
         ]
     }
@@ -221,7 +320,7 @@ def display_org_stats(org_data: Dict[str, Any], repos: list, print_flag: bool = 
     
     return data
 
-def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = True, show_contributors: bool = False, token: str = None, show_activity: bool = False, show_health: bool = False) -> Dict[str, Any]:
+def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = True, show_contributors: bool = False, token: str = None, show_activity: bool = False, show_health: bool = False, show_sizes: bool = False) -> Dict[str, Any]:
     """Display the fetched stats in a readable format and return data."""
     data = {
         "username": user_data['login'],
@@ -240,7 +339,8 @@ def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = Tru
                 "language": repo["language"],
                 "forks": repo["forks_count"],
                 "open_issues": repo["open_issues_count"],
-                "updated_at": repo["updated_at"]
+                "updated_at": repo["updated_at"],
+                "size": repo.get("size", 0)
             } for repo in repos[:10]
         ]
     }
@@ -260,6 +360,8 @@ def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = Tru
         headers = ["Name", "Stars", "Language", "Forks", "Open Issues", "Last Updated"]
         if show_health:
             headers.append("Health Score")
+        if show_sizes:
+            headers.append("Size (KB)")
         repo_table = [headers]
         for repo in data["top_repositories"]:
             row = [repo["name"], repo["stars"], repo["language"] or "N/A", repo["forks"], repo["open_issues"], repo["updated_at"]]
@@ -276,6 +378,8 @@ def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = Tru
                 except:
                     pass
                 row.append(health)
+            if show_sizes:
+                row.append(repo["size"])
             repo_table.append(row)
         print(tabulate(repo_table, headers="firstrow", tablefmt="grid"))
         
@@ -307,6 +411,10 @@ def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = Tru
                     for i, week in enumerate(recent_weeks)
                 ]
                 print(tabulate(activity_table, headers="firstrow", tablefmt="grid"))
+    
+    # Save to database
+    save_user_stats_to_db(data['username'], data)
+    save_repo_stats_to_db(data['username'], repos)
     
     return data
 
@@ -475,6 +583,9 @@ def main():
     parser.add_argument("--yaml", action="store_true", help="Output in YAML format")
     parser.add_argument("--rate-limit", action="store_true", help="Show current GitHub API rate limit status")
     parser.add_argument("--health", action="store_true", help="Calculate and display repository health scores")
+    parser.add_argument("--web", action="store_true", help="Launch web interface")
+    parser.add_argument("--history", type=int, nargs='?', const=30, help="Show historical data for last N days (default 30)")
+    parser.add_argument("--sizes", action="store_true", help="Show repository sizes and file counts")
     args = parser.parse_args()
     
     if args.rate_limit:
@@ -489,6 +600,13 @@ def main():
             print("Unable to fetch rate limit information.")
         return
     
+    if args.web:
+        print("Launching web interface...")
+        print("Open http://localhost:5000 in your browser")
+        from web_app import app
+        app.run(debug=True, host='0.0.0.0', port=5000)
+        return
+    
     is_org = False
     if args.compare:
         usernames = args.compare
@@ -501,6 +619,21 @@ def main():
     else:
         parser.error("Either provide a username, --org organization, or use --compare for multiple users")
     
+    if args.history:
+        history = get_user_history(usernames[0], args.history)
+        if history:
+            print(f"Historical data for {usernames[0]} (last {args.history} days):")
+            history_table = [
+                ["Date", "Followers", "Following", "Public Repos", "Public Gists"]
+            ] + [
+                [datetime.fromisoformat(entry[0]).strftime('%Y-%m-%d'), entry[1], entry[2], entry[3], entry[4]]
+                for entry in history
+            ]
+            print(tabulate(history_table, headers="firstrow", tablefmt="grid"))
+        else:
+            print(f"No historical data found for {usernames[0]}")
+        return
+    
     try:
         if len(usernames) > 1:
             compare_users(usernames, args.token, args.max_repos)
@@ -512,7 +645,7 @@ def main():
             else:
                 user_data = get_user_stats(usernames[0], args.token)
                 repos = get_user_repos(usernames[0], args.max_repos, args.token, args.since)
-                data = display_stats(user_data, repos, not (args.json or args.csv or args.chart or args.html or args.pie or args.yaml), args.contributors, args.token, args.activity, args.health)
+                data = display_stats(user_data, repos, not (args.json or args.csv or args.chart or args.html or args.pie or args.yaml), args.contributors, args.token, args.activity, args.health, args.sizes)
             if args.json:
                 print(json.dumps(data, indent=4))
             if args.csv:
