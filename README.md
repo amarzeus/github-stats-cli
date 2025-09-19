@@ -30,6 +30,13 @@ A powerful command-line tool to fetch, analyze, and visualize GitHub user statis
 - Organization statistics support
 - Time-based repository filtering (--since)
 - Contributor analysis for top repositories
+- Commit activity analysis for repositories
+- YAML export format
+- GitHub API rate limit monitoring
+- Repository health score calculations
+- Intelligent caching system for performance
+- Progress indicators for batch operations
+- Pie charts for programming language distribution
 
 ## Requirements
 
@@ -38,6 +45,7 @@ A powerful command-line tool to fetch, analyze, and visualize GitHub user statis
 - `matplotlib` library (for charts)
 - `tabulate` library (for tables)
 - `tqdm` library (for progress bars)
+- `pyyaml` library (for YAML export)
 - `json` (built-in)
 - `csv` (built-in)
 - `os` (built-in)
@@ -152,6 +160,26 @@ python github_stats_cli.py octocat --since 2023-01-01
 Show top contributors for top repository:
 ```
 python github_stats_cli.py octocat --contributors
+```
+
+Show commit activity for top repository:
+```
+python github_stats_cli.py octocat --activity
+```
+
+Output in YAML format:
+```
+python github_stats_cli.py octocat --yaml
+```
+
+Check GitHub API rate limit status:
+```
+python github_stats_cli.py --rate-limit
+```
+
+Display repository health scores:
+```
+python github_stats_cli.py octocat --health
 ```
 
 **Note**: To create a GitHub token, go to [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens). Select `repo` scope for private repos.

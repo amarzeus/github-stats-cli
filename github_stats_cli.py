@@ -13,6 +13,7 @@ import requests
 import time
 from tabulate import tabulate
 from tqdm import tqdm
+import yaml
 from typing import Dict, Any
 
 CACHE_FILE = ".cache.json"
@@ -145,6 +146,35 @@ def get_repo_contributors(owner: str, repo: str, token: str = None, max_contribs
     set_cached_data(cache_key, data)
     return data
 
+def get_commit_activity(owner: str, repo: str, token: str = None) -> list:
+    """Fetch commit activity for a repository."""
+    cache_key = f"activity_{owner}_{repo}_{token or 'no_token'}"
+    cached = get_cached_data(cache_key)
+    if cached:
+        return cached
+    
+    url = f"https://api.github.com/repos/{owner}/{repo}/stats/commit_activity"
+    headers = {"Authorization": f"token {token}"} if token else None
+    response = requests.get(url, headers=headers)
+    if response.status_code == 404:
+        return []
+    elif response.status_code == 403:
+        return []
+    elif response.status_code != 200:
+        return []
+    data = response.json()
+    set_cached_data(cache_key, data)
+    return data
+
+def get_rate_limit(token: str = None) -> Dict[str, Any]:
+    """Get current GitHub API rate limit status."""
+    url = "https://api.github.com/rate_limit"
+    headers = {"Authorization": f"token {token}"} if token else None
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        return {}
+    return response.json()
+
 def display_org_stats(org_data: Dict[str, Any], repos: list, print_flag: bool = True) -> Dict[str, Any]:
     """Display the fetched org stats in a readable format and return data."""
     data = {
@@ -191,7 +221,7 @@ def display_org_stats(org_data: Dict[str, Any], repos: list, print_flag: bool = 
     
     return data
 
-def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = True, show_contributors: bool = False, token: str = None) -> Dict[str, Any]:
+def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = True, show_contributors: bool = False, token: str = None, show_activity: bool = False, show_health: bool = False) -> Dict[str, Any]:
     """Display the fetched stats in a readable format and return data."""
     data = {
         "username": user_data['login'],
@@ -227,12 +257,26 @@ def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = Tru
         print(f"Account Created: {data['created_at']}")
         
         print("\nTop Repositories (by stars):")
-        repo_table = [
-            ["Name", "Stars", "Language", "Forks", "Open Issues", "Last Updated"]
-        ] + [
-            [repo["name"], repo["stars"], repo["language"] or "N/A", repo["forks"], repo["open_issues"], repo["updated_at"]]
-            for repo in data["top_repositories"]
-        ]
+        headers = ["Name", "Stars", "Language", "Forks", "Open Issues", "Last Updated"]
+        if show_health:
+            headers.append("Health Score")
+        repo_table = [headers]
+        for repo in data["top_repositories"]:
+            row = [repo["name"], repo["stars"], repo["language"] or "N/A", repo["forks"], repo["open_issues"], repo["updated_at"]]
+            if show_health:
+                # Simple health score calculation
+                health = repo["stars"] * 2 + repo["forks"] * 3 - repo["open_issues"]
+                # Bonus for recent updates (within 30 days)
+                from datetime import datetime, timezone
+                try:
+                    updated = datetime.fromisoformat(repo["updated_at"].replace('Z', '+00:00'))
+                    days_since = (datetime.now(timezone.utc) - updated).days
+                    if days_since <= 30:
+                        health += 10
+                except:
+                    pass
+                row.append(health)
+            repo_table.append(row)
         print(tabulate(repo_table, headers="firstrow", tablefmt="grid"))
         
         if show_contributors and repos:
@@ -247,6 +291,22 @@ def display_stats(user_data: Dict[str, Any], repos: list, print_flag: bool = Tru
                     for contrib in contributors[:5]
                 ]
                 print(tabulate(contrib_table, headers="firstrow", tablefmt="grid"))
+        
+        if show_activity and repos:
+            top_repo = repos[0]
+            activity = get_commit_activity(data['username'], top_repo['name'], token)
+            if activity:
+                print(f"\nCommit Activity for {top_repo['name']} (last 52 weeks):")
+                total_commits = sum(week['total'] for week in activity)
+                print(f"Total Commits: {total_commits}")
+                recent_weeks = activity[-12:]  # Last 12 weeks
+                activity_table = [
+                    ["Week", "Commits"]
+                ] + [
+                    [f"Week {i+1}", week['total']]
+                    for i, week in enumerate(recent_weeks)
+                ]
+                print(tabulate(activity_table, headers="firstrow", tablefmt="grid"))
     
     return data
 
@@ -265,6 +325,15 @@ def output_csv(data: Dict[str, Any]):
     for repo in data["top_repositories"]:
         writer.writerow(["Repo", repo["name"], repo["stars"], repo["language"], repo["forks"], repo["open_issues"], repo["updated_at"]])
     
+    print("CSV Output:")
+    print(output.getvalue())
+
+def output_yaml(data: Dict[str, Any]):
+    """Output data in YAML format."""
+    yaml_output = yaml.dump(data, default_flow_style=False, allow_unicode=True)
+    print("YAML Output:")
+    print(yaml_output)
+
 def generate_chart(data: Dict[str, Any]):
     """Generate a bar chart of top repositories by stars."""
     repos = data["top_repositories"]
@@ -402,7 +471,23 @@ def main():
     parser.add_argument("--org", help="Get stats for organization instead of user")
     parser.add_argument("--since", help="Filter repos updated since date (YYYY-MM-DD)")
     parser.add_argument("--contributors", action="store_true", help="Show top contributors for the top repository")
+    parser.add_argument("--activity", action="store_true", help="Show commit activity for top repositories")
+    parser.add_argument("--yaml", action="store_true", help="Output in YAML format")
+    parser.add_argument("--rate-limit", action="store_true", help="Show current GitHub API rate limit status")
+    parser.add_argument("--health", action="store_true", help="Calculate and display repository health scores")
     args = parser.parse_args()
+    
+    if args.rate_limit:
+        rate_limit_data = get_rate_limit(args.token)
+        if rate_limit_data:
+            core = rate_limit_data.get('resources', {}).get('core', {})
+            print("GitHub API Rate Limit Status:")
+            print(f"Limit: {core.get('limit', 'N/A')}")
+            print(f"Remaining: {core.get('remaining', 'N/A')}")
+            print(f"Reset Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(core.get('reset', 0)))}")
+        else:
+            print("Unable to fetch rate limit information.")
+        return
     
     is_org = False
     if args.compare:
@@ -427,11 +512,13 @@ def main():
             else:
                 user_data = get_user_stats(usernames[0], args.token)
                 repos = get_user_repos(usernames[0], args.max_repos, args.token, args.since)
-                data = display_stats(user_data, repos, not (args.json or args.csv or args.chart or args.html or args.pie), args.contributors, args.token)
+                data = display_stats(user_data, repos, not (args.json or args.csv or args.chart or args.html or args.pie or args.yaml), args.contributors, args.token, args.activity, args.health)
             if args.json:
                 print(json.dumps(data, indent=4))
             if args.csv:
                 output_csv(data)
+            if args.yaml:
+                output_yaml(data)
             if args.chart:
                 generate_chart(data)
             if args.html:
