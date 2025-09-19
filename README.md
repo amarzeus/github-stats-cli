@@ -8,6 +8,7 @@ A simple command-line tool to fetch and display GitHub user statistics, includin
 - Display top repositories sorted by stars
 - Easy-to-use CLI interface
 - No authentication required (uses public GitHub API)
+- Export data in JSON format
 
 ## Installation
 
@@ -53,6 +54,11 @@ python github_stats_cli.py octocat
 Limit the number of repositories displayed:
 ```
 python github_stats_cli.py octocat --max-repos 5
+```
+
+Output in JSON format:
+```
+python github_stats_cli.py octocat --json
 ```
 
 ### Output Example
