@@ -9,6 +9,7 @@ import io
 import json
 import matplotlib.pyplot as plt
 import requests
+from tabulate import tabulate
 from typing import Dict, Any
 
 def get_user_stats(username: str, token: str = None) -> Dict[str, Any]:
@@ -105,26 +106,112 @@ def generate_chart(data: Dict[str, Any]):
     plt.savefig('github_stats_chart.png')
     print("Chart saved as 'github_stats_chart.png'")
 
+def generate_html(data: Dict[str, Any]):
+    """Generate an HTML dashboard."""
+    html = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Stats Dashboard - {data["username"]}</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; }}
+        h1 {{ color: #333; }}
+        .stats {{ display: flex; flex-wrap: wrap; }}
+        .stat {{ background: #f4f4f4; padding: 10px; margin: 10px; border-radius: 5px; flex: 1; min-width: 200px; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        th {{ background-color: #f2f2f2; }}
+    </style>
+</head>
+<body>
+    <h1>GitHub Stats Dashboard for {data["username"]}</h1>
+    <div class="stats">
+        <div class="stat"><strong>Name:</strong> {data.get("name", "N/A")}</div>
+        <div class="stat"><strong>Bio:</strong> {data.get("bio", "N/A")}</div>
+        <div class="stat"><strong>Location:</strong> {data.get("location", "N/A")}</div>
+        <div class="stat"><strong>Followers:</strong> {data["followers"]}</div>
+        <div class="stat"><strong>Following:</strong> {data["following"]}</div>
+        <div class="stat"><strong>Public Repos:</strong> {data["public_repos"]}</div>
+        <div class="stat"><strong>Public Gists:</strong> {data["public_gists"]}</div>
+        <div class="stat"><strong>Account Created:</strong> {data["created_at"]}</div>
+    </div>
+    <h2>Top Repositories</h2>
+    <table>
+        <tr><th>Name</th><th>Stars</th><th>Language</th></tr>
+        {"".join(f"<tr><td>{repo['name']}</td><td>{repo['stars']}</td><td>{repo['language'] or 'N/A'}</td></tr>" for repo in data["top_repositories"])}
+    </table>
+    <!-- If chart exists, embed it -->
+    <h2>Chart</h2>
+    <img src="github_stats_chart.png" alt="Repository Stars Chart" style="max-width: 100%;">
+</body>
+</html>
+"""
+    with open("github_stats_dashboard.html", "w") as f:
+        f.write(html)
+    print("Dashboard saved as 'github_stats_dashboard.html'")
+
+def compare_users(usernames: list, token: str = None, max_repos: int = 10):
+    """Compare stats of multiple users."""
+    user_data_list = []
+    for username in usernames:
+        try:
+            user_data = get_user_stats(username, token)
+            repos = get_user_repos(username, max_repos, token)
+            data = display_stats(user_data, repos, False)  # Don't print individual
+            user_data_list.append(data)
+        except ValueError as e:
+            print(f"Error fetching data for {username}: {e}")
+            return
+    
+    # Create comparison table
+    headers = ["Stat"] + usernames
+    table = [
+        ["Name", *[d.get("name", "N/A") for d in user_data_list]],
+        ["Followers", *[d["followers"] for d in user_data_list]],
+        ["Following", *[d["following"] for d in user_data_list]],
+        ["Public Repos", *[d["public_repos"] for d in user_data_list]],
+        ["Public Gists", *[d["public_gists"] for d in user_data_list]],
+        ["Account Created", *[d["created_at"] for d in user_data_list]],
+    ]
+    print("\nUser Comparison:")
+    print(tabulate(table, headers=headers, tablefmt="grid"))
+
 def main():
     parser = argparse.ArgumentParser(description="Fetch GitHub user statistics.")
-    parser.add_argument("username", help="GitHub username to fetch stats for")
+    parser.add_argument("username", nargs='?', help="GitHub username to fetch stats for (use --compare for multiple)")
     parser.add_argument("--max-repos", type=int, default=10, help="Max number of repos to display (default: 10)")
     parser.add_argument("--json", action="store_true", help="Output in JSON format")
     parser.add_argument("--csv", action="store_true", help="Output in CSV format")
     parser.add_argument("--chart", action="store_true", help="Generate a bar chart of top repositories by stars")
     parser.add_argument("--token", help="GitHub personal access token for authentication (optional)")
+    parser.add_argument("--compare", nargs='+', help="Compare stats of multiple users")
+    parser.add_argument("--html", action="store_true", help="Generate an HTML dashboard")
     args = parser.parse_args()
     
+    if args.compare:
+        usernames = args.compare
+    elif args.username:
+        usernames = [args.username]
+    else:
+        parser.error("Either provide a username or use --compare for multiple users")
+    
     try:
-        user_data = get_user_stats(args.username, args.token)
-        repos = get_user_repos(args.username, args.max_repos, args.token)
-        data = display_stats(user_data, repos, not (args.json or args.csv or args.chart))
-        if args.json:
-            print(json.dumps(data, indent=4))
-        elif args.csv:
-            output_csv(data)
-        elif args.chart:
-            generate_chart(data)
+        if len(usernames) > 1:
+            compare_users(usernames, args.token, args.max_repos)
+        else:
+            user_data = get_user_stats(usernames[0], args.token)
+            repos = get_user_repos(usernames[0], args.max_repos, args.token)
+            data = display_stats(user_data, repos, not (args.json or args.csv or args.chart or args.html))
+            if args.json:
+                print(json.dumps(data, indent=4))
+            if args.csv:
+                output_csv(data)
+            if args.chart:
+                generate_chart(data)
+            if args.html:
+                generate_html(data)
     except ValueError as e:
         print(f"Error: {e}")
     except requests.RequestException as e:
